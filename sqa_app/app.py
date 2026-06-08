@@ -180,7 +180,7 @@ tab1, tab2 = st.tabs(["📂 Análise de Projeto", "🧪 Análise de Código"])
 with tab1:
     st.markdown("### Importar projeto")
 
-    source = st.radio("", ["🔗 Repositório GitHub/GitLab", "📦 Upload ZIP"], horizontal=True, label_visibility="collapsed")
+    source = st.radio("Fonte do projeto", ["🔗 Repositório GitHub/GitLab", "📦 Upload ZIP"], horizontal=True, label_visibility="collapsed")
     st.write("")
 
     if source == "🔗 Repositório GitHub/GitLab":
