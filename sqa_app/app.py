@@ -53,7 +53,7 @@ ANALYSIS_TAGS = [
     ("11 · Lançamento",     "Crash reports e telemetria"),
 ]
 
-CODE_EXTS = (".cpp", ".cxx", ".c", ".h", ".hpp", ".py", ".java", ".cs", ".ts", ".js")
+CODE_EXTS = (".cpp", ".cxx", ".c", ".h", ".hpp", ".py", ".java", ".cs", ".ts", ".js", ".svelte", ".vue", ".jsx", ".tsx", ".html", ".css", ".scss", ".go", ".rb", ".php", ".kt", ".swift")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def stream_response(prompt: str):
@@ -88,37 +88,22 @@ def fetch_raw(url: str) -> str:
 
 def github_file_list(repo_url: str) -> tuple[list[str], dict]:
     """Returns (file_list, meta) where meta has user/repo/branch for later fetching."""
-    gh = re.match(r"https://github\.com/([^/]+)/([^/]+?)(?:/tree/([^/]+)(?:/(.+))?)?$", repo_url.rstrip("/"))
+    gh = re.match(r"https://github\.com/([^/]+)/([^/\s?#]+)", repo_url.strip())
     if not gh:
-        return [], {}
-    user, repo, branch, path = gh.groups()
-    branch = branch or "master"
+        return [], {"erro": f"URL não reconhecida: {repo_url}"}
+    user, repo = gh.group(1), gh.group(2).removesuffix(".git")
 
-    # Try the subtree SHA directly if a path is given (avoids truncation on big repos)
-    if path:
-        # Get the SHA of the subtree
-        tree_url = f"https://api.github.com/repos/{user}/{repo}/contents/{path}?ref={branch}"
-        r = requests.get(tree_url, timeout=10)
-        if r.status_code == 200 and isinstance(r.json(), list):
-            # It's a directory listing — get recursive tree via SHA
-            # First find the tree SHA
-            ref_url = f"https://api.github.com/repos/{user}/{repo}/git/trees/{branch}:{path}?recursive=1"
-            r2 = requests.get(ref_url, timeout=10)
-            if r2.status_code == 200:
-                files = [
-                    f"{path}/{f['path']}" for f in r2.json().get("tree", [])
-                    if f["type"] == "blob" and any(f["path"].endswith(e) for e in CODE_EXTS)
-                ]
-                return sorted(files)[:300], {"user": user, "repo": repo, "branch": branch}
+    info = requests.get(f"https://api.github.com/repos/{user}/{repo}", timeout=10)
+    if info.status_code != 200:
+        return [], {"erro": f"Repositório não encontrado ({info.status_code})"}
+    branch = info.json().get("default_branch", "main")
 
     r = requests.get(f"https://api.github.com/repos/{user}/{repo}/git/trees/{branch}?recursive=1", timeout=10)
     if r.status_code != 200:
-        return [], {}
+        return [], {"erro": f"Trees API retornou {r.status_code}"}
     files = [
         f["path"] for f in r.json().get("tree", [])
-        if f["type"] == "blob"
-        and any(f["path"].endswith(e) for e in CODE_EXTS)
-        and (not path or f["path"].startswith(path))
+        if f["type"] == "blob" and any(f["path"].endswith(e) for e in CODE_EXTS)
     ]
     return sorted(files)[:300], {"user": user, "repo": repo, "branch": branch}
 
@@ -214,7 +199,7 @@ with tab1:
                     st.session_state.pop("proj_files", None)
                     st.success(f"{len(files)} arquivos encontrados.")
                 else:
-                    st.error("Não foi possível listar os arquivos.")
+                    st.error(f"Não foi possível listar os arquivos. Meta retornado: `{meta}`. Verifique se a URL é válida ou se o GitHub API não está sendo limitado (60 req/h sem token).")
 
         if "proj_file_list" in st.session_state and "proj_files" not in st.session_state:
             sel = st.multiselect(
